@@ -235,6 +235,28 @@ impl UserRegistry {
         users
     }
 
+    pub async fn create_session(
+        &self,
+        user_id: &str,
+        client_id: &str,
+        config: Arc<Config>,
+        http_client: HttpClient,
+    ) -> Result<(), Error> {
+        self.register_user(user_id, client_id).await?;
+        self.sessions.write().await.insert(
+            user_id.to_string(),
+            UserSession {
+                config,
+                quote_context: None,
+                trade_context: None,
+                content_context: None,
+                http_client: Some(http_client),
+                last_accessed: Instant::now(),
+            },
+        );
+        Ok(())
+    }
+
     pub fn spawn_cleanup_task(self: &Arc<Self>) {
         let registry = Arc::clone(self);
         tokio::spawn(async move {

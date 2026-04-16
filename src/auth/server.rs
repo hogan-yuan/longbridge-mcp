@@ -31,8 +31,6 @@ struct IssuedCode {
     code_challenge: String,
     code_challenge_method: String,
     client_redirect_uri: String,
-    /// Authorization code received from Longbridge OAuth
-    lb_code: String,
 }
 
 pub struct OAuthState {
@@ -131,9 +129,14 @@ async fn authorize(
         "authorize request"
     );
 
-    // TODO: dynamically register a Longbridge client_id via POST /oauth2/register
-    // For now, placeholder
-    let lb_client_id = format!("dynamic-{}", Uuid::new_v4());
+    let callback_url = format!("{}/oauth/callback", state.base_url);
+    let lb_client_id = match crate::auth::longbridge::register_client(&callback_url).await {
+        Ok(id) => id,
+        Err(e) => {
+            tracing::error!(error = %e, "failed to register Longbridge OAuth client");
+            return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+        }
+    };
 
     let our_state = Uuid::new_v4().to_string();
 
@@ -151,10 +154,12 @@ async fn authorize(
     );
 
     // Redirect to Longbridge OAuth authorize
+    let lb_api_url = std::env::var("LONGBRIDGE_HTTP_URL")
+        .unwrap_or_else(|_| "https://openapi.longbridge.com".to_string());
     let lb_authorize_url = format!(
-        "https://openapi.longbridge.com/oauth2/authorize?client_id={}&redirect_uri={}&response_type=code&state={}",
+        "{lb_api_url}/oauth2/authorize?client_id={}&redirect_uri={}&response_type=code&state={}",
         lb_client_id,
-        urlencoding::encode(&format!("{}/oauth/callback", state.base_url)),
+        urlencoding::encode(&callback_url),
         our_state,
     );
 
@@ -182,15 +187,46 @@ async fn callback(
     };
 
     // Exchange code for Longbridge tokens
-    // TODO: implement actual token exchange with Longbridge using params.code
-    // For now, create user session with the dynamic client_id
+    let callback_url = format!("{}/oauth/callback", state.base_url);
+    let tokens = match crate::auth::longbridge::exchange_token(
+        &pending.lb_client_id,
+        &params.code,
+        &callback_url,
+    )
+    .await
+    {
+        Ok(t) => t,
+        Err(e) => {
+            tracing::error!(error = %e, "failed to exchange Longbridge token");
+            return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+        }
+    };
+
+    // Save token file before loading via OAuthBuilder (it reads from disk)
+    if let Err(e) = crate::auth::longbridge::save_token_file(&pending.lb_client_id, &tokens) {
+        tracing::error!(error = %e, "failed to save token file");
+        return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+    }
+
+    // Create Config + HttpClient from the saved token
+    let (config, http_client) =
+        match crate::auth::longbridge::create_session(&pending.lb_client_id).await {
+            Ok(pair) => pair,
+            Err(e) => {
+                tracing::error!(error = %e, "failed to create Longbridge session");
+                return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+            }
+        };
+
     let user_id = Uuid::new_v4().to_string();
 
+    // Register user in DB and insert in-memory session
     if let Err(e) = state
         .registry
-        .register_user(&user_id, &pending.lb_client_id)
+        .create_session(&user_id, &pending.lb_client_id, config, http_client)
         .await
     {
+        tracing::error!(error = %e, "failed to create user session");
         return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
     }
 
@@ -203,7 +239,6 @@ async fn callback(
             code_challenge: pending.code_challenge,
             code_challenge_method: pending.code_challenge_method,
             client_redirect_uri: pending.client_redirect_uri.clone(),
-            lb_code: params.code,
         },
     );
 
@@ -273,9 +308,6 @@ async fn token_endpoint(
             ) {
                 return (StatusCode::BAD_REQUEST, "PKCE verification failed").into_response();
             }
-
-            // TODO: exchange issued.lb_code with Longbridge for actual tokens
-            let _ = &issued.lb_code;
 
             let access = match token::issue_access_token(&state.jwt_secret, &issued.user_id) {
                 Ok(t) => t,
