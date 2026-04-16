@@ -33,11 +33,18 @@ struct IssuedCode {
     client_redirect_uri: String,
 }
 
+/// Registered MCP client info (from /oauth/register).
+struct RegisteredClient {
+    redirect_uris: Vec<String>,
+}
+
 pub struct OAuthState {
     /// state_token -> PendingAuth
     pending: RwLock<HashMap<String, PendingAuth>>,
     /// authorization_code -> IssuedCode
     codes: RwLock<HashMap<String, IssuedCode>>,
+    /// MCP client_id -> RegisteredClient
+    clients: RwLock<HashMap<String, RegisteredClient>>,
 }
 
 impl OAuthState {
@@ -45,6 +52,7 @@ impl OAuthState {
         Self {
             pending: RwLock::new(HashMap::new()),
             codes: RwLock::new(HashMap::new()),
+            clients: RwLock::new(HashMap::new()),
         }
     }
 }
@@ -106,10 +114,9 @@ pub struct AuthorizeParams {
     code_challenge: String,
     code_challenge_method: String,
     state: Option<String>,
-    /// Standard OAuth scope (accepted but not enforced yet)
     #[serde(default)]
     scope: Option<String>,
-    /// Standard OAuth client_id (accepted but not enforced yet)
+    /// MCP client_id (from /oauth/register)
     #[serde(default)]
     client_id: Option<String>,
 }
@@ -123,6 +130,25 @@ async fn authorize(
     }
     if params.code_challenge_method != "S256" {
         return (StatusCode::BAD_REQUEST, "unsupported code_challenge_method").into_response();
+    }
+
+    // Validate MCP client_id and redirect_uri if client_id is provided
+    if let Some(ref mcp_client_id) = params.client_id {
+        let oauth_state = state.registry.oauth_state();
+        let clients = oauth_state.clients.read().await;
+        match clients.get(mcp_client_id) {
+            Some(client) => {
+                if !client.redirect_uris.is_empty()
+                    && !client.redirect_uris.contains(&params.redirect_uri)
+                {
+                    return (StatusCode::BAD_REQUEST, "redirect_uri not registered")
+                        .into_response();
+                }
+            }
+            None => {
+                return (StatusCode::BAD_REQUEST, "unknown client_id").into_response();
+            }
+        }
     }
 
     tracing::debug!(
@@ -432,10 +458,20 @@ struct ClientRegistrationResponse {
 
 /// MCP Client registers itself with our OAuth server (RFC 7591).
 async fn register_client(
+    State(state): State<Arc<AppState>>,
     Json(req): Json<ClientRegistrationRequest>,
 ) -> Json<ClientRegistrationResponse> {
     let client_id = Uuid::new_v4().to_string();
     tracing::info!(client_id, client_name = ?req.client_name, "registered MCP client");
+
+    let oauth_state = state.registry.oauth_state();
+    oauth_state.clients.write().await.insert(
+        client_id.clone(),
+        RegisteredClient {
+            redirect_uris: req.redirect_uris.clone(),
+        },
+    );
+
     Json(ClientRegistrationResponse {
         client_id,
         client_name: req.client_name,
