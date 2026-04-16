@@ -1,12 +1,12 @@
+use longbridge::trade::TradeContext;
 use rmcp::ErrorData as McpError;
 use rmcp::model::CallToolResult;
 use rmcp::schemars::JsonSchema;
 use rmcp::serde::Deserialize;
 
 use crate::error::Error;
-use crate::registry::UserRegistry;
 use crate::tools::parse;
-use crate::tools::{tool_json, tool_result};
+use crate::tools::{create_config, tool_json, tool_result};
 
 pub use crate::tools::quote::SymbolParam;
 
@@ -80,99 +80,59 @@ pub struct EstimateMaxQtyParam {
     pub price: Option<String>,
 }
 
-pub async fn account_balance(
-    registry: &UserRegistry,
-    user_id: &str,
-) -> Result<CallToolResult, McpError> {
-    let trade_ctx = registry.get_trade_context(user_id).await?;
-    let result = trade_ctx
-        .account_balance(None)
-        .await
-        .map_err(Error::longbridge)?;
+pub async fn account_balance(token: &str) -> Result<CallToolResult, McpError> {
+    let (ctx, _) = TradeContext::new(create_config(token));
+    let result = ctx.account_balance(None).await.map_err(Error::longbridge)?;
     tool_json(&result)
 }
 
-pub async fn stock_positions(
-    registry: &UserRegistry,
-    user_id: &str,
-) -> Result<CallToolResult, McpError> {
-    let trade_ctx = registry.get_trade_context(user_id).await?;
-    let result = trade_ctx
-        .stock_positions(None)
-        .await
-        .map_err(Error::longbridge)?;
+pub async fn stock_positions(token: &str) -> Result<CallToolResult, McpError> {
+    let (ctx, _) = TradeContext::new(create_config(token));
+    let result = ctx.stock_positions(None).await.map_err(Error::longbridge)?;
     tool_json(&result)
 }
 
-pub async fn fund_positions(
-    registry: &UserRegistry,
-    user_id: &str,
-) -> Result<CallToolResult, McpError> {
-    let trade_ctx = registry.get_trade_context(user_id).await?;
-    let result = trade_ctx
-        .fund_positions(None)
-        .await
-        .map_err(Error::longbridge)?;
+pub async fn fund_positions(token: &str) -> Result<CallToolResult, McpError> {
+    let (ctx, _) = TradeContext::new(create_config(token));
+    let result = ctx.fund_positions(None).await.map_err(Error::longbridge)?;
     tool_json(&result)
 }
 
-pub async fn margin_ratio(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: SymbolParam,
-) -> Result<CallToolResult, McpError> {
-    let trade_ctx = registry.get_trade_context(user_id).await?;
-    let result = trade_ctx
+pub async fn margin_ratio(token: &str, p: SymbolParam) -> Result<CallToolResult, McpError> {
+    let (ctx, _) = TradeContext::new(create_config(token));
+    let result = ctx
         .margin_ratio(p.symbol)
         .await
         .map_err(Error::longbridge)?;
     tool_json(&result)
 }
 
-pub async fn today_orders(
-    registry: &UserRegistry,
-    user_id: &str,
-) -> Result<CallToolResult, McpError> {
-    let trade_ctx = registry.get_trade_context(user_id).await?;
-    let result = trade_ctx
-        .today_orders(None)
-        .await
-        .map_err(Error::longbridge)?;
+pub async fn today_orders(token: &str) -> Result<CallToolResult, McpError> {
+    let (ctx, _) = TradeContext::new(create_config(token));
+    let result = ctx.today_orders(None).await.map_err(Error::longbridge)?;
     tool_json(&result)
 }
 
-pub async fn order_detail(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: OrderIdParam,
-) -> Result<CallToolResult, McpError> {
-    let trade_ctx = registry.get_trade_context(user_id).await?;
-    let result = trade_ctx
+pub async fn order_detail(token: &str, p: OrderIdParam) -> Result<CallToolResult, McpError> {
+    let (ctx, _) = TradeContext::new(create_config(token));
+    let result = ctx
         .order_detail(p.order_id)
         .await
         .map_err(Error::longbridge)?;
     tool_json(&result)
 }
 
-pub async fn cancel_order(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: OrderIdParam,
-) -> Result<CallToolResult, McpError> {
-    let trade_ctx = registry.get_trade_context(user_id).await?;
-    trade_ctx
-        .cancel_order(p.order_id)
+pub async fn cancel_order(token: &str, p: OrderIdParam) -> Result<CallToolResult, McpError> {
+    let (ctx, _) = TradeContext::new(create_config(token));
+    ctx.cancel_order(p.order_id)
         .await
         .map_err(Error::longbridge)?;
     Ok(tool_result("order cancelled".to_string()))
 }
 
-pub async fn today_executions(
-    registry: &UserRegistry,
-    user_id: &str,
-) -> Result<CallToolResult, McpError> {
-    let trade_ctx = registry.get_trade_context(user_id).await?;
-    let result = trade_ctx
+pub async fn today_executions(token: &str) -> Result<CallToolResult, McpError> {
+    let (ctx, _) = TradeContext::new(create_config(token));
+    let result = ctx
         .today_executions(None)
         .await
         .map_err(Error::longbridge)?;
@@ -180,8 +140,7 @@ pub async fn today_executions(
 }
 
 pub async fn history_orders(
-    registry: &UserRegistry,
-    user_id: &str,
+    token: &str,
     p: HistoryOrdersParam,
 ) -> Result<CallToolResult, McpError> {
     let start = parse::parse_rfc3339(&p.start_at)?;
@@ -192,17 +151,13 @@ pub async fn history_orders(
     if let Some(symbol) = p.symbol {
         opts = opts.symbol(symbol);
     }
-    let trade_ctx = registry.get_trade_context(user_id).await?;
-    let result = trade_ctx
-        .history_orders(opts)
-        .await
-        .map_err(Error::longbridge)?;
+    let (ctx, _) = TradeContext::new(create_config(token));
+    let result = ctx.history_orders(opts).await.map_err(Error::longbridge)?;
     tool_json(&result)
 }
 
 pub async fn history_executions(
-    registry: &UserRegistry,
-    user_id: &str,
+    token: &str,
     p: HistoryOrdersParam,
 ) -> Result<CallToolResult, McpError> {
     let start = parse::parse_rfc3339(&p.start_at)?;
@@ -213,32 +168,24 @@ pub async fn history_executions(
     if let Some(symbol) = p.symbol {
         opts = opts.symbol(symbol);
     }
-    let trade_ctx = registry.get_trade_context(user_id).await?;
-    let result = trade_ctx
+    let (ctx, _) = TradeContext::new(create_config(token));
+    let result = ctx
         .history_executions(opts)
         .await
         .map_err(Error::longbridge)?;
     tool_json(&result)
 }
 
-pub async fn cash_flow(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: CashFlowParam,
-) -> Result<CallToolResult, McpError> {
+pub async fn cash_flow(token: &str, p: CashFlowParam) -> Result<CallToolResult, McpError> {
     let start = parse::parse_rfc3339(&p.start_at)?;
     let end = parse::parse_rfc3339(&p.end_at)?;
     let opts = longbridge::trade::GetCashFlowOptions::new(start, end);
-    let trade_ctx = registry.get_trade_context(user_id).await?;
-    let result = trade_ctx.cash_flow(opts).await.map_err(Error::longbridge)?;
+    let (ctx, _) = TradeContext::new(create_config(token));
+    let result = ctx.cash_flow(opts).await.map_err(Error::longbridge)?;
     tool_json(&result)
 }
 
-pub async fn submit_order(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: SubmitOrderParam,
-) -> Result<CallToolResult, McpError> {
+pub async fn submit_order(token: &str, p: SubmitOrderParam) -> Result<CallToolResult, McpError> {
     use longbridge::Decimal;
     use longbridge::trade::{
         OrderSide, OrderType, OutsideRTH, SubmitOrderOptions, TimeInForceType,
@@ -299,19 +246,12 @@ pub async fn submit_order(
             })?);
     }
 
-    let trade_ctx = registry.get_trade_context(user_id).await?;
-    let result = trade_ctx
-        .submit_order(opts)
-        .await
-        .map_err(Error::longbridge)?;
+    let (ctx, _) = TradeContext::new(create_config(token));
+    let result = ctx.submit_order(opts).await.map_err(Error::longbridge)?;
     tool_json(&result)
 }
 
-pub async fn replace_order(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: ReplaceOrderParam,
-) -> Result<CallToolResult, McpError> {
+pub async fn replace_order(token: &str, p: ReplaceOrderParam) -> Result<CallToolResult, McpError> {
     use longbridge::Decimal;
     use longbridge::trade::ReplaceOrderOptions;
     use std::str::FromStr;
@@ -347,17 +287,13 @@ pub async fn replace_order(
             McpError::invalid_params(format!("invalid trailing_percent: {e}"), None)
         })?);
     }
-    let trade_ctx = registry.get_trade_context(user_id).await?;
-    trade_ctx
-        .replace_order(opts)
-        .await
-        .map_err(Error::longbridge)?;
+    let (ctx, _) = TradeContext::new(create_config(token));
+    ctx.replace_order(opts).await.map_err(Error::longbridge)?;
     Ok(tool_result("order replaced".to_string()))
 }
 
 pub async fn estimate_max_purchase_quantity(
-    registry: &UserRegistry,
-    user_id: &str,
+    token: &str,
     p: EstimateMaxQtyParam,
 ) -> Result<CallToolResult, McpError> {
     use longbridge::Decimal;
@@ -379,8 +315,8 @@ pub async fn estimate_max_purchase_quantity(
                 .map_err(|e| McpError::invalid_params(format!("invalid price: {e}"), None))?,
         );
     }
-    let trade_ctx = registry.get_trade_context(user_id).await?;
-    let result = trade_ctx
+    let (ctx, _) = TradeContext::new(create_config(token));
+    let result = ctx
         .estimate_max_purchase_quantity(opts)
         .await
         .map_err(Error::longbridge)?;

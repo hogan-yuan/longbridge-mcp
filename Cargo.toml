@@ -26,19 +26,11 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
 time = { version = "0.3", features = ["formatting", "parsing"] }
-jsonwebtoken = "9"
-uuid = { version = "1", features = ["v4"] }
 reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["cors"] }
-rusqlite = { version = "0.32", features = ["bundled"] }
 prometheus = "0.13"
 thiserror = "2"
 axum-server = { version = "0.7", features = ["tls-rustls"] }
 serde-transcode = "1.1"
-rand = "0.9"
-sha2 = "0.10"
-base64 = "0.22"
-dirs = "6"
 anyhow = "1"
-urlencoding = "2"

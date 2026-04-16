@@ -3,36 +3,32 @@ use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 
-use crate::auth::token;
-use crate::registry::UserRegistry;
-use crate::tools::UserIdentity;
+/// Bearer token extracted from the Authorization header.
+#[derive(Clone, Debug)]
+pub struct BearerToken(pub String);
 
 /// Auth middleware for MCP endpoints.
 ///
-/// Validates Bearer token from Authorization header and injects `UserIdentity`
-/// into request extensions so rmcp's `StreamableHttpService` can forward it
-/// to tool handlers via `RequestContext`.
+/// Extracts Bearer token from Authorization header and stores it as
+/// `BearerToken` in request extensions. No JWT validation -- the token
+/// is forwarded to Longbridge SDK calls directly.
 ///
 /// On 401 responses, includes `resource_metadata` in the `WWW-Authenticate`
 /// header as required by the MCP OAuth 2.1 spec (RFC 9728).
-pub async fn mcp_auth_layer(
-    mut req: Request,
-    next: Next,
-    jwt_secret: &[u8],
-    registry: &UserRegistry,
-    base_url: &str,
-) -> Response {
+pub async fn mcp_auth_layer(mut req: Request, next: Next, base_url: &str) -> Response {
     let www_authenticate =
         format!("Bearer resource_metadata=\"{base_url}/.well-known/oauth-protected-resource\"");
 
-    let auth_header = req
+    let bearer_token = req
         .headers()
         .get("Authorization")
-        .and_then(|v| v.to_str().ok());
+        .and_then(|v| v.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .map(|t| t.to_string());
 
-    let bearer_token = match auth_header {
-        Some(h) if h.starts_with("Bearer ") => &h[7..],
-        _ => {
+    let bearer_token = match bearer_token {
+        Some(t) => t,
+        None => {
             return (
                 StatusCode::UNAUTHORIZED,
                 [("WWW-Authenticate", www_authenticate.as_str())],
@@ -42,30 +38,7 @@ pub async fn mcp_auth_layer(
         }
     };
 
-    let claims = match token::validate_token(jwt_secret, bearer_token, "access") {
-        Ok(c) => c,
-        Err(_) => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                [("WWW-Authenticate", www_authenticate.as_str())],
-                "invalid or expired token",
-            )
-                .into_response();
-        }
-    };
-
-    if !registry.user_exists(&claims.sub).await {
-        return (
-            StatusCode::UNAUTHORIZED,
-            [("WWW-Authenticate", www_authenticate.as_str())],
-            "user not found",
-        )
-            .into_response();
-    }
-
-    req.extensions_mut().insert(UserIdentity {
-        user_id: claims.sub,
-    });
+    req.extensions_mut().insert(BearerToken(bearer_token));
 
     next.run(req).await
 }

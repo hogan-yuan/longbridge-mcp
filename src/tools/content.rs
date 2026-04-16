@@ -1,11 +1,11 @@
+use longbridge::ContentContext;
 use rmcp::ErrorData as McpError;
 use rmcp::model::CallToolResult;
 use rmcp::schemars::JsonSchema;
 use rmcp::serde::Deserialize;
 
 use crate::error::Error;
-use crate::registry::UserRegistry;
-use crate::tools::tool_json;
+use crate::tools::{create_config, create_http_client, tool_json};
 
 fn content_base_url(language: &Option<String>) -> &'static str {
     match language {
@@ -56,19 +56,13 @@ pub struct FilingDetailParam {
     pub filing_id: String,
 }
 
-pub async fn news(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: SymbolParam,
-) -> Result<CallToolResult, McpError> {
-    let ctx = registry.get_content_context(user_id).await?;
+pub async fn news(token: &str, p: SymbolParam) -> Result<CallToolResult, McpError> {
+    let ctx = ContentContext::new(create_config(token));
     let result = ctx.news(p.symbol).await.map_err(Error::longbridge)?;
     tool_json(&result)
 }
 
 pub async fn news_detail(
-    _registry: &UserRegistry,
-    _user_id: &str,
     p: NewsDetailParam,
     language: Option<String>,
 ) -> Result<CallToolResult, McpError> {
@@ -85,19 +79,13 @@ pub async fn news_detail(
     )]))
 }
 
-pub async fn topic(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: SymbolParam,
-) -> Result<CallToolResult, McpError> {
-    let ctx = registry.get_content_context(user_id).await?;
+pub async fn topic(token: &str, p: SymbolParam) -> Result<CallToolResult, McpError> {
+    let ctx = ContentContext::new(create_config(token));
     let result = ctx.topics(p.symbol).await.map_err(Error::longbridge)?;
     tool_json(&result)
 }
 
 pub async fn topic_detail(
-    _registry: &UserRegistry,
-    _user_id: &str,
     p: TopicIdParam,
     language: Option<String>,
 ) -> Result<CallToolResult, McpError> {
@@ -115,8 +103,6 @@ pub async fn topic_detail(
 }
 
 pub async fn topic_replies(
-    _registry: &UserRegistry,
-    _user_id: &str,
     p: TopicIdParam,
     language: Option<String>,
 ) -> Result<CallToolResult, McpError> {
@@ -137,12 +123,8 @@ pub async fn topic_replies(
     )]))
 }
 
-pub async fn topic_create(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: TopicCreateParam,
-) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+pub async fn topic_create(token: &str, p: TopicCreateParam) -> Result<CallToolResult, McpError> {
+    let client = create_http_client(token);
     let mut body = serde_json::json!({
         "title": p.title,
         "body": p.body,
@@ -154,11 +136,10 @@ pub async fn topic_create(
 }
 
 pub async fn topic_create_reply(
-    registry: &UserRegistry,
-    user_id: &str,
+    token: &str,
     p: TopicCreateReplyParam,
 ) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+    let client = create_http_client(token);
     let body = serde_json::json!({
         "topic_id": p.topic_id,
         "body": p.body,
@@ -167,8 +148,6 @@ pub async fn topic_create_reply(
 }
 
 pub async fn filing_detail(
-    _registry: &UserRegistry,
-    _user_id: &str,
     p: FilingDetailParam,
     language: Option<String>,
 ) -> Result<CallToolResult, McpError> {

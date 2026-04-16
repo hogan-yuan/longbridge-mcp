@@ -1,49 +1,10 @@
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use prometheus::{
-    Encoder, HistogramVec, IntCounter, IntCounterVec, IntGauge, Opts, Registry, TextEncoder,
-};
+use prometheus::{Encoder, HistogramVec, IntCounterVec, Opts, Registry, TextEncoder};
 
 use std::sync::LazyLock;
 
 static REGISTRY: LazyLock<Registry> = LazyLock::new(Registry::new);
-
-static ACTIVE_SESSIONS: LazyLock<IntGauge> = LazyLock::new(|| {
-    let gauge = IntGauge::new("mcp_active_sessions", "Active user sessions in memory").unwrap();
-    REGISTRY.register(Box::new(gauge.clone())).unwrap();
-    gauge
-});
-
-static ACTIVE_QUOTE_CONTEXTS: LazyLock<IntGauge> = LazyLock::new(|| {
-    let gauge =
-        IntGauge::new("mcp_active_quote_contexts", "Active QuoteContext instances").unwrap();
-    REGISTRY.register(Box::new(gauge.clone())).unwrap();
-    gauge
-});
-
-static ACTIVE_TRADE_CONTEXTS: LazyLock<IntGauge> = LazyLock::new(|| {
-    let gauge =
-        IntGauge::new("mcp_active_trade_contexts", "Active TradeContext instances").unwrap();
-    REGISTRY.register(Box::new(gauge.clone())).unwrap();
-    gauge
-});
-
-static REGISTERED_USERS_TOTAL: LazyLock<IntGauge> = LazyLock::new(|| {
-    let gauge =
-        IntGauge::new("mcp_registered_users_total", "Total registered users in DB").unwrap();
-    REGISTRY.register(Box::new(gauge.clone())).unwrap();
-    gauge
-});
-
-static OAUTH_AUTHORIZATIONS_TOTAL: LazyLock<IntCounter> = LazyLock::new(|| {
-    let counter = IntCounter::new(
-        "mcp_oauth_authorizations_total",
-        "Total OAuth authorizations completed",
-    )
-    .unwrap();
-    REGISTRY.register(Box::new(counter.clone())).unwrap();
-    counter
-});
 
 static TOOL_CALLS_TOTAL: LazyLock<IntCounterVec> = LazyLock::new(|| {
     let counter = IntCounterVec::new(
@@ -86,26 +47,6 @@ pub fn record_tool_call(tool_name: &str, duration_secs: f64, is_error: bool) {
     if is_error {
         TOOL_CALL_ERRORS_TOTAL.with_label_values(&[tool_name]).inc();
     }
-}
-
-pub fn set_active_sessions(count: i64) {
-    ACTIVE_SESSIONS.set(count);
-}
-
-pub fn set_active_quote_contexts(count: i64) {
-    ACTIVE_QUOTE_CONTEXTS.set(count);
-}
-
-pub fn set_active_trade_contexts(count: i64) {
-    ACTIVE_TRADE_CONTEXTS.set(count);
-}
-
-pub fn set_registered_users_total(count: i64) {
-    REGISTERED_USERS_TOTAL.set(count);
-}
-
-pub fn inc_oauth_authorizations() {
-    OAUTH_AUTHORIZATIONS_TOTAL.inc();
 }
 
 pub async fn metrics_handler() -> impl IntoResponse {

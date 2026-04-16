@@ -5,10 +5,10 @@ A [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server that e
 ## Features
 
 - **90 MCP tools** across 9 categories: quotes, trading, fundamentals, market data, calendars, portfolio, alerts, content, and account statements
-- **OAuth 2.1 authentication** compliant with the [MCP authorization spec](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization), with PKCE support
-- **Per-user session management** with lazy context creation and configurable idle timeout
+- **Stateless architecture** -- each request carries a Bearer token forwarded directly to the Longbridge SDK; no server-side sessions or database
+- **OAuth 2.1 resource metadata** compliant with RFC 9728, pointing clients to Longbridge OAuth for authorization
 - **JSON response transformation** -- field names normalized to snake_case, timestamps converted to RFC 3339, internal counter_id values mapped to human-readable symbols
-- **Prometheus metrics** for monitoring tool calls, latency, errors, and session counts
+- **Prometheus metrics** for monitoring tool calls, latency, and errors
 - **Configurable** via CLI arguments or a JSON config file (CLI takes precedence)
 
 ## Quick Start
@@ -31,7 +31,6 @@ Create a config file at `~/.longbridge/mcp/config.json` (optional):
 {
   "bind": "127.0.0.1:8000",
   "base_url": "https://mcp.example.com",
-  "idle_timeout": 300,
   "log_dir": "/var/log/longbridge-mcp"
 }
 ```
@@ -47,8 +46,7 @@ Create a config file at `~/.longbridge/mcp/config.json` (optional):
 | Option | Config Key | CLI Flag | Default | Description |
 |--------|-----------|----------|---------|-------------|
 | Bind address | `bind` | `--bind` | `127.0.0.1:8000` | HTTP server listen address |
-| Base URL | `base_url` | `--base-url` | auto | Public base URL for OAuth callbacks |
-| Idle timeout | `idle_timeout` | `--idle-timeout` | `300` | Session idle timeout in seconds |
+| Base URL | `base_url` | `--base-url` | auto | Public base URL for resource metadata |
 | Log directory | `log_dir` | `--log-dir` | *(stderr)* | Directory for rolling log files |
 | TLS certificate | `tls_cert` | `--tls-cert` | *(none)* | PEM certificate file for HTTPS |
 | TLS private key | `tls_key` | `--tls-key` | *(none)* | PEM private key file for HTTPS |
@@ -57,19 +55,9 @@ CLI arguments override config file values. The config file is read from `~/.long
 
 When `tls_cert` and `tls_key` are both set, the server runs HTTPS. Otherwise it falls back to HTTP. The `base_url` defaults to `https://localhost:{port}` with TLS or `http://localhost:{port}` without.
 
-### HTTPS Example
+## Authentication
 
-```json
-{
-  "bind": "0.0.0.0:8443",
-  "tls_cert": "/path/to/cert.pem",
-  "tls_key": "/path/to/key.pem"
-}
-```
-
-```bash
-./target/release/longbridge-mcp --tls-cert cert.pem --tls-key key.pem
-```
+The server expects a Longbridge OAuth access token in the `Authorization: Bearer <token>` header. On missing or invalid auth, it returns 401 with a `WWW-Authenticate` header pointing to the protected resource metadata endpoint, which in turn directs MCP clients to the Longbridge OAuth authorization server.
 
 ## Claude Code Integration
 
@@ -81,58 +69,11 @@ claude mcp add --transport http longbridge-mcp http://localhost:8000/mcp
 
 Claude Code will handle the OAuth flow automatically when the server requires authentication.
 
-## OAuth Flow
-
-The server implements a double OAuth flow -- MCP clients authenticate against this server, which in turn authenticates against Longbridge OAuth on behalf of the user.
-
-```
-MCP Client                    MCP Server                    Longbridge OAuth
-    |                              |                              |
-    |-- MCP request (no token) --> |                              |
-    |<-- 401 + WWW-Authenticate -- |                              |
-    |                              |                              |
-    |-- GET /.well-known/* ------> |                              |
-    |<-- metadata ----------------- |                              |
-    |                              |                              |
-    |-- /oauth/authorize --------> |  register client ----------> |
-    |                              |<-- client_id ---------------- |
-    |                              |-- 302 redirect ------------> |
-    |                              |     (Longbridge authorize)   |
-    |                              |                              |
-    |              [user authorizes on Longbridge page]           |
-    |                              |                              |
-    |                              |<-- callback?code=xxx -------- |
-    |                              |-- exchange code for token -> |
-    |                              |<-- Longbridge tokens -------- |
-    |                              |                              |
-    |<-- 302 redirect_uri?code= -- |  (issue auth code)          |
-    |                              |                              |
-    |-- POST /oauth/token -------> |                              |
-    |   (code + code_verifier)     |  (verify PKCE, issue JWT)   |
-    |<-- access_token ------------ |                              |
-    |                              |                              |
-    |-- MCP request + Bearer ----> |  (validate JWT, find        |
-    |                              |   Longbridge session)        |
-    |<-- MCP response ------------ |                              |
-```
-
-Key points:
-- Each user gets a dynamically registered Longbridge OAuth client_id
-- Longbridge credentials stay server-side; MCP clients only receive JWTs issued by this server
-- Sessions survive idle timeouts -- credentials persist on disk, so reconnection does not require re-authorization
-- PKCE (S256) is required for all authorization requests
-
 ## API Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/.well-known/oauth-protected-resource` | Protected Resource Metadata (RFC 9728) |
-| GET | `/.well-known/oauth-authorization-server` | Authorization Server Metadata (RFC 8414) |
-| GET | `/oauth/authorize` | OAuth authorization endpoint |
-| GET | `/oauth/callback` | Longbridge OAuth callback |
-| POST | `/oauth/token` | Token endpoint (issue / refresh) |
-| GET | `/api/users` | List authorized users |
-| DELETE | `/api/users/{user_id}` | Revoke a user (delete session, credentials, DB record) |
 | GET | `/metrics` | Prometheus metrics |
 | POST/GET/DELETE | `/mcp` | MCP Streamable HTTP endpoint (requires Bearer token) |
 
@@ -155,7 +96,6 @@ Key points:
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `mcp_active_sessions` | Gauge | Current number of active user sessions |
 | `mcp_tool_calls_total` | Counter | Total tool invocations (label: `tool_name`) |
 | `mcp_tool_call_duration_seconds` | Histogram | Tool call latency (label: `tool_name`) |
 | `mcp_tool_call_errors_total` | Counter | Tool call error count (label: `tool_name`) |
@@ -167,11 +107,8 @@ src/
   main.rs              CLI args, config loading, axum server setup
   auth/
     mod.rs             Router composition, MCP service wiring
-    server.rs          OAuth endpoints (authorize, callback, token, metadata)
-    token.rs           JWT issuance and validation (HS256)
-    middleware.rs       Bearer token auth middleware
-    longbridge.rs      Longbridge OAuth client registration and token exchange
-  registry.rs          Per-user session registry (SQLite-backed, lazy context creation)
+    metadata.rs        Protected Resource Metadata (RFC 9728)
+    middleware.rs       Bearer token extraction middleware
   tools/
     mod.rs             MCP tool definitions and ServerHandler impl
     quote.rs           Quote tools (SDK QuoteContext)
@@ -182,10 +119,10 @@ src/
     portfolio.rs       Portfolio analytics (HTTP API)
     alert.rs           Price alerts (HTTP API)
     content.rs         News, topics, filings (SDK ContentContext + HTTP)
-    statement.rs       Account statements (SDK)
-    http_client.rs     Shared HTTP client with Longbridge auth
+    statement.rs       Account statements (HTTP API)
+    http_client.rs     Shared HTTP client helpers
     parse.rs           Parameter parsing helpers
-  serialize.rs         JSON transformation (snake_case, timestamps, counter_id -> symbol)
+  serialize/           JSON transformation (snake_case, timestamps, counter_id -> symbol)
   counter.rs           Symbol <-> counter_id bidirectional conversion
   metrics.rs           Prometheus metric definitions and /metrics handler
   error.rs             Unified error type (thiserror)

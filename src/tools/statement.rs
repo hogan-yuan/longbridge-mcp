@@ -3,7 +3,7 @@ use rmcp::model::CallToolResult;
 use rmcp::schemars::JsonSchema;
 use rmcp::serde::Deserialize;
 
-use crate::registry::UserRegistry;
+use crate::tools::create_http_client;
 use crate::tools::http_client::http_get_tool;
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -25,11 +25,10 @@ pub struct StatementExportParam {
 }
 
 pub async fn statement_list(
-    registry: &UserRegistry,
-    user_id: &str,
+    token: &str,
     p: StatementListParam,
 ) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+    let client = create_http_client(token);
     let st = p.statement_type.as_deref().unwrap_or("daily");
     let st_val = if st == "monthly" { "monthly" } else { "daily" };
     let limit_str = p.limit.unwrap_or(30).to_string();
@@ -43,11 +42,10 @@ pub async fn statement_list(
 }
 
 pub async fn statement_export(
-    registry: &UserRegistry,
-    user_id: &str,
+    token: &str,
     p: StatementExportParam,
 ) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+    let client = create_http_client(token);
     let mut params: Vec<(&str, &str)> = vec![("file_key", p.file_key.as_str())];
     let sections_str;
     if let Some(ref sections) = p.sections {

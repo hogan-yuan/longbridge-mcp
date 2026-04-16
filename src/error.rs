@@ -8,18 +8,8 @@ pub enum Error {
     Serialize(#[from] serde_json::Error),
     #[error("http: {0}")]
     Http(#[from] reqwest::Error),
-    #[error("database: {0}")]
-    Database(#[from] rusqlite::Error),
-    #[error("jwt: {0}")]
-    Jwt(#[from] jsonwebtoken::errors::Error),
     #[error("io: {0}")]
     Io(#[from] std::io::Error),
-    #[error("session not found: {0}")]
-    SessionNotFound(String),
-    #[error("not authenticated")]
-    NotAuthenticated,
-    #[error("oauth: {0}")]
-    OAuth(String),
     #[error("{0}")]
     Other(String),
 }

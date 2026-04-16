@@ -4,7 +4,7 @@ use rmcp::schemars::JsonSchema;
 use rmcp::serde::Deserialize;
 
 use crate::counter::{index_symbol_to_counter_id, symbol_to_counter_id};
-use crate::registry::UserRegistry;
+use crate::tools::create_http_client;
 use crate::tools::http_client::http_get_tool;
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -33,20 +33,13 @@ pub struct IndexSymbolParam {
     pub symbol: String,
 }
 
-pub async fn market_status(
-    registry: &UserRegistry,
-    user_id: &str,
-) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+pub async fn market_status(token: &str) -> Result<CallToolResult, McpError> {
+    let client = create_http_client(token);
     http_get_tool(&client, "/v1/quote/market-status", &[]).await
 }
 
-pub async fn broker_holding(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: SymbolParam,
-) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+pub async fn broker_holding(token: &str, p: SymbolParam) -> Result<CallToolResult, McpError> {
+    let client = create_http_client(token);
     let cid = symbol_to_counter_id(&p.symbol);
     http_get_tool(
         &client,
@@ -57,11 +50,10 @@ pub async fn broker_holding(
 }
 
 pub async fn broker_holding_detail(
-    registry: &UserRegistry,
-    user_id: &str,
+    token: &str,
     p: SymbolParam,
 ) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+    let client = create_http_client(token);
     let cid = symbol_to_counter_id(&p.symbol);
     http_get_tool(
         &client,
@@ -72,11 +64,10 @@ pub async fn broker_holding_detail(
 }
 
 pub async fn broker_holding_daily(
-    registry: &UserRegistry,
-    user_id: &str,
+    token: &str,
     p: BrokerHoldingDailyParam,
 ) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+    let client = create_http_client(token);
     let cid = symbol_to_counter_id(&p.symbol);
     http_get_tool(
         &client,
@@ -89,12 +80,8 @@ pub async fn broker_holding_daily(
     .await
 }
 
-pub async fn ah_premium(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: SymbolParam,
-) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+pub async fn ah_premium(token: &str, p: SymbolParam) -> Result<CallToolResult, McpError> {
+    let client = create_http_client(token);
     let cid = symbol_to_counter_id(&p.symbol);
     http_get_tool(
         &client,
@@ -104,12 +91,8 @@ pub async fn ah_premium(
     .await
 }
 
-pub async fn ah_premium_intraday(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: SymbolParam,
-) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+pub async fn ah_premium_intraday(token: &str, p: SymbolParam) -> Result<CallToolResult, McpError> {
+    let client = create_http_client(token);
     let cid = symbol_to_counter_id(&p.symbol);
     http_get_tool(
         &client,
@@ -119,12 +102,8 @@ pub async fn ah_premium_intraday(
     .await
 }
 
-pub async fn trade_stats(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: SymbolParam,
-) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+pub async fn trade_stats(token: &str, p: SymbolParam) -> Result<CallToolResult, McpError> {
+    let client = create_http_client(token);
     let cid = symbol_to_counter_id(&p.symbol);
     http_get_tool(
         &client,
@@ -134,12 +113,8 @@ pub async fn trade_stats(
     .await
 }
 
-pub async fn anomaly(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: MarketParam,
-) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+pub async fn anomaly(token: &str, p: MarketParam) -> Result<CallToolResult, McpError> {
+    let client = create_http_client(token);
     let market_upper = p.market.to_uppercase();
     http_get_tool(
         &client,
@@ -149,12 +124,8 @@ pub async fn anomaly(
     .await
 }
 
-pub async fn constituent(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: IndexSymbolParam,
-) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+pub async fn constituent(token: &str, p: IndexSymbolParam) -> Result<CallToolResult, McpError> {
+    let client = create_http_client(token);
     let cid = index_symbol_to_counter_id(&p.symbol);
     http_get_tool(
         &client,

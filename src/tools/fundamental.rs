@@ -4,7 +4,7 @@ use rmcp::schemars::JsonSchema;
 use rmcp::serde::Deserialize;
 
 use crate::counter::symbol_to_counter_id;
-use crate::registry::UserRegistry;
+use crate::tools::create_http_client;
 use crate::tools::http_client::http_get_tool;
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -22,11 +22,10 @@ pub struct FinancialReportParam {
 }
 
 pub async fn financial_report(
-    registry: &UserRegistry,
-    user_id: &str,
+    token: &str,
     p: FinancialReportParam,
 ) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+    let client = create_http_client(token);
     let cid = symbol_to_counter_id(&p.symbol);
     let mut params: Vec<(&str, &str)> = vec![("counter_id", cid.as_str())];
     let report_type = p.report_type.unwrap_or_default();
@@ -36,12 +35,8 @@ pub async fn financial_report(
     http_get_tool(&client, "/v1/quote/financial-reports", &params).await
 }
 
-pub async fn institution_rating(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: SymbolParam,
-) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+pub async fn institution_rating(token: &str, p: SymbolParam) -> Result<CallToolResult, McpError> {
+    let client = create_http_client(token);
     let cid = symbol_to_counter_id(&p.symbol);
     let params = [("counter_id", cid.as_str())];
     let ratings = http_get_tool(&client, "/v1/quote/institution-rating-latest", &params).await;
@@ -70,11 +65,10 @@ pub async fn institution_rating(
 }
 
 pub async fn institution_rating_detail(
-    registry: &UserRegistry,
-    user_id: &str,
+    token: &str,
     p: SymbolParam,
 ) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+    let client = create_http_client(token);
     let cid = symbol_to_counter_id(&p.symbol);
     http_get_tool(
         &client,
@@ -84,12 +78,8 @@ pub async fn institution_rating_detail(
     .await
 }
 
-pub async fn dividend(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: SymbolParam,
-) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+pub async fn dividend(token: &str, p: SymbolParam) -> Result<CallToolResult, McpError> {
+    let client = create_http_client(token);
     let cid = symbol_to_counter_id(&p.symbol);
     http_get_tool(
         &client,
@@ -99,12 +89,8 @@ pub async fn dividend(
     .await
 }
 
-pub async fn dividend_detail(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: SymbolParam,
-) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+pub async fn dividend_detail(token: &str, p: SymbolParam) -> Result<CallToolResult, McpError> {
+    let client = create_http_client(token);
     let cid = symbol_to_counter_id(&p.symbol);
     http_get_tool(
         &client,
@@ -114,12 +100,8 @@ pub async fn dividend_detail(
     .await
 }
 
-pub async fn forecast_eps(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: SymbolParam,
-) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+pub async fn forecast_eps(token: &str, p: SymbolParam) -> Result<CallToolResult, McpError> {
+    let client = create_http_client(token);
     let cid = symbol_to_counter_id(&p.symbol);
     http_get_tool(
         &client,
@@ -129,12 +111,8 @@ pub async fn forecast_eps(
     .await
 }
 
-pub async fn consensus(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: SymbolParam,
-) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+pub async fn consensus(token: &str, p: SymbolParam) -> Result<CallToolResult, McpError> {
+    let client = create_http_client(token);
     let cid = symbol_to_counter_id(&p.symbol);
     http_get_tool(
         &client,
@@ -144,12 +122,8 @@ pub async fn consensus(
     .await
 }
 
-pub async fn valuation(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: SymbolParam,
-) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+pub async fn valuation(token: &str, p: SymbolParam) -> Result<CallToolResult, McpError> {
+    let client = create_http_client(token);
     let cid = symbol_to_counter_id(&p.symbol);
     http_get_tool(
         &client,
@@ -159,12 +133,8 @@ pub async fn valuation(
     .await
 }
 
-pub async fn valuation_history(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: SymbolParam,
-) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+pub async fn valuation_history(token: &str, p: SymbolParam) -> Result<CallToolResult, McpError> {
+    let client = create_http_client(token);
     let cid = symbol_to_counter_id(&p.symbol);
     http_get_tool(
         &client,
@@ -174,12 +144,8 @@ pub async fn valuation_history(
     .await
 }
 
-pub async fn industry_valuation(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: SymbolParam,
-) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+pub async fn industry_valuation(token: &str, p: SymbolParam) -> Result<CallToolResult, McpError> {
+    let client = create_http_client(token);
     let cid = symbol_to_counter_id(&p.symbol);
     http_get_tool(
         &client,
@@ -190,11 +156,10 @@ pub async fn industry_valuation(
 }
 
 pub async fn industry_valuation_dist(
-    registry: &UserRegistry,
-    user_id: &str,
+    token: &str,
     p: SymbolParam,
 ) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+    let client = create_http_client(token);
     let cid = symbol_to_counter_id(&p.symbol);
     http_get_tool(
         &client,
@@ -204,12 +169,8 @@ pub async fn industry_valuation_dist(
     .await
 }
 
-pub async fn company(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: SymbolParam,
-) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+pub async fn company(token: &str, p: SymbolParam) -> Result<CallToolResult, McpError> {
+    let client = create_http_client(token);
     let cid = symbol_to_counter_id(&p.symbol);
     http_get_tool(
         &client,
@@ -219,12 +180,8 @@ pub async fn company(
     .await
 }
 
-pub async fn executive(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: SymbolParam,
-) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+pub async fn executive(token: &str, p: SymbolParam) -> Result<CallToolResult, McpError> {
+    let client = create_http_client(token);
     let cid = symbol_to_counter_id(&p.symbol);
     http_get_tool(
         &client,
@@ -234,12 +191,8 @@ pub async fn executive(
     .await
 }
 
-pub async fn shareholder(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: SymbolParam,
-) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+pub async fn shareholder(token: &str, p: SymbolParam) -> Result<CallToolResult, McpError> {
+    let client = create_http_client(token);
     let cid = symbol_to_counter_id(&p.symbol);
     http_get_tool(
         &client,
@@ -249,12 +202,8 @@ pub async fn shareholder(
     .await
 }
 
-pub async fn fund_holder(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: SymbolParam,
-) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+pub async fn fund_holder(token: &str, p: SymbolParam) -> Result<CallToolResult, McpError> {
+    let client = create_http_client(token);
     let cid = symbol_to_counter_id(&p.symbol);
     http_get_tool(
         &client,
@@ -264,12 +213,8 @@ pub async fn fund_holder(
     .await
 }
 
-pub async fn corp_action(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: SymbolParam,
-) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+pub async fn corp_action(token: &str, p: SymbolParam) -> Result<CallToolResult, McpError> {
+    let client = create_http_client(token);
     let cid = symbol_to_counter_id(&p.symbol);
     http_get_tool(
         &client,
@@ -283,12 +228,8 @@ pub async fn corp_action(
     .await
 }
 
-pub async fn invest_relation(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: SymbolParam,
-) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+pub async fn invest_relation(token: &str, p: SymbolParam) -> Result<CallToolResult, McpError> {
+    let client = create_http_client(token);
     let cid = symbol_to_counter_id(&p.symbol);
     http_get_tool(
         &client,
@@ -298,12 +239,8 @@ pub async fn invest_relation(
     .await
 }
 
-pub async fn operating(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: SymbolParam,
-) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+pub async fn operating(token: &str, p: SymbolParam) -> Result<CallToolResult, McpError> {
+    let client = create_http_client(token);
     let cid = symbol_to_counter_id(&p.symbol);
     http_get_tool(
         &client,

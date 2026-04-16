@@ -4,7 +4,7 @@ use rmcp::schemars::JsonSchema;
 use rmcp::serde::Deserialize;
 
 use crate::counter::symbol_to_counter_id;
-use crate::registry::UserRegistry;
+use crate::tools::create_http_client;
 use crate::tools::http_client::http_get_tool;
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -13,28 +13,21 @@ pub struct ProfitAnalysisDetailParam {
     pub symbol: String,
 }
 
-pub async fn exchange_rate(
-    registry: &UserRegistry,
-    user_id: &str,
-) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+pub async fn exchange_rate(token: &str) -> Result<CallToolResult, McpError> {
+    let client = create_http_client(token);
     http_get_tool(&client, "/v1/asset/exchange_rates", &[]).await
 }
 
-pub async fn profit_analysis(
-    registry: &UserRegistry,
-    user_id: &str,
-) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+pub async fn profit_analysis(token: &str) -> Result<CallToolResult, McpError> {
+    let client = create_http_client(token);
     http_get_tool(&client, "/v1/portfolio/profit-analysis-summary", &[]).await
 }
 
 pub async fn profit_analysis_detail(
-    registry: &UserRegistry,
-    user_id: &str,
+    token: &str,
     p: ProfitAnalysisDetailParam,
 ) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+    let client = create_http_client(token);
     let cid = symbol_to_counter_id(&p.symbol);
     http_get_tool(
         &client,

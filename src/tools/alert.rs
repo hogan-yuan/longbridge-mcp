@@ -4,7 +4,7 @@ use rmcp::schemars::JsonSchema;
 use rmcp::serde::Deserialize;
 
 use crate::counter::symbol_to_counter_id;
-use crate::registry::UserRegistry;
+use crate::tools::create_http_client;
 use crate::tools::http_client::{http_delete_tool, http_get_tool, http_post_tool};
 use crate::tools::tool_result;
 
@@ -26,20 +26,13 @@ pub struct AlertIdParam {
     pub alert_id: String,
 }
 
-pub async fn alert_list(
-    registry: &UserRegistry,
-    user_id: &str,
-) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+pub async fn alert_list(token: &str) -> Result<CallToolResult, McpError> {
+    let client = create_http_client(token);
     http_get_tool(&client, "/v1/notify/reminders", &[]).await
 }
 
-pub async fn alert_add(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: AlertAddParam,
-) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+pub async fn alert_add(token: &str, p: AlertAddParam) -> Result<CallToolResult, McpError> {
+    let client = create_http_client(token);
     let cid = symbol_to_counter_id(&p.symbol);
     let indicator_id: i32 = match p.condition.as_str() {
         "percent_fall" => 4,
@@ -69,12 +62,8 @@ pub async fn alert_add(
     http_post_tool(&client, "/v1/notify/reminders", body).await
 }
 
-pub async fn alert_delete(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: AlertIdParam,
-) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+pub async fn alert_delete(token: &str, p: AlertIdParam) -> Result<CallToolResult, McpError> {
+    let client = create_http_client(token);
     let id_num: i64 = p
         .alert_id
         .parse()
@@ -83,29 +72,20 @@ pub async fn alert_delete(
     http_delete_tool(&client, "/v1/notify/reminders", body).await
 }
 
-pub async fn alert_enable(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: AlertIdParam,
-) -> Result<CallToolResult, McpError> {
-    alert_set_enabled(registry, user_id, &p.alert_id, true).await
+pub async fn alert_enable(token: &str, p: AlertIdParam) -> Result<CallToolResult, McpError> {
+    alert_set_enabled(token, &p.alert_id, true).await
 }
 
-pub async fn alert_disable(
-    registry: &UserRegistry,
-    user_id: &str,
-    p: AlertIdParam,
-) -> Result<CallToolResult, McpError> {
-    alert_set_enabled(registry, user_id, &p.alert_id, false).await
+pub async fn alert_disable(token: &str, p: AlertIdParam) -> Result<CallToolResult, McpError> {
+    alert_set_enabled(token, &p.alert_id, false).await
 }
 
 async fn alert_set_enabled(
-    registry: &UserRegistry,
-    user_id: &str,
+    token: &str,
     alert_id: &str,
     enabled: bool,
 ) -> Result<CallToolResult, McpError> {
-    let client = registry.get_http_client(user_id).await?;
+    let client = create_http_client(token);
     let id_num: i64 = alert_id
         .parse()
         .map_err(|_| McpError::invalid_params("invalid alert_id", None))?;
