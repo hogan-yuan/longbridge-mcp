@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-longbridge = { path = "../openapi-sdk/rust" }
+longbridge = { git = "https://github.com/longbridge/openapi.git" }
 rmcp = { version = "1.4", features = [
     "server",
     "transport-streamable-http-server",
