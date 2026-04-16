@@ -47,15 +47,20 @@ pub fn create_router(state: Arc<AppState>) -> Router {
     // Auth middleware layer: validates Bearer token and injects UserIdentity
     let jwt_secret = state.jwt_secret.clone();
     let auth_registry = state.registry.clone();
-    let mcp_with_auth = tower::ServiceBuilder::new()
-        .layer(axum::middleware::from_fn(
-            move |req: axum::extract::Request, next: axum::middleware::Next| {
-                let secret = jwt_secret.clone();
-                let registry = auth_registry.clone();
-                async move { middleware::mcp_auth_layer(req, next, &secret, &registry).await }
-            },
-        ))
-        .service(mcp_service);
+    let base_url = state.base_url.clone();
+    let mcp_with_auth =
+        tower::ServiceBuilder::new()
+            .layer(axum::middleware::from_fn(
+                move |req: axum::extract::Request, next: axum::middleware::Next| {
+                    let secret = jwt_secret.clone();
+                    let registry = auth_registry.clone();
+                    let base_url = base_url.clone();
+                    async move {
+                        middleware::mcp_auth_layer(req, next, &secret, &registry, &base_url).await
+                    }
+                },
+            ))
+            .service(mcp_service);
 
     Router::new()
         .merge(oauth_routes)
