@@ -298,7 +298,14 @@ impl UserRegistry {
                     client_id: cid,
                     created_at: created,
                     active: session.is_some(),
-                    last_accessed: session.map(|s| format!("{:?}", s.last_accessed.elapsed())),
+                    last_accessed: session.map(|s| {
+                        let elapsed = s.last_accessed.elapsed();
+                        let secs = elapsed.as_secs();
+                        let now =
+                            time::OffsetDateTime::now_utc() - time::Duration::seconds(secs as i64);
+                        now.format(&time::format_description::well_known::Rfc3339)
+                            .unwrap_or_else(|_| format!("{secs}s ago"))
+                    }),
                 });
             }
         }
@@ -346,7 +353,26 @@ impl UserRegistry {
                 if removed > 0 {
                     tracing::info!(removed, "cleaned up idle sessions");
                 }
-                crate::metrics::set_active_sessions(sessions.len() as i64);
+                let session_count = sessions.len() as i64;
+                let quote_count = sessions
+                    .values()
+                    .filter(|s| s.quote_context.is_some())
+                    .count() as i64;
+                let trade_count = sessions
+                    .values()
+                    .filter(|s| s.trade_context.is_some())
+                    .count() as i64;
+                crate::metrics::set_active_sessions(session_count);
+                crate::metrics::set_active_quote_contexts(quote_count);
+                crate::metrics::set_active_trade_contexts(trade_count);
+
+                // Count registered users from DB
+                if let Ok(conn) = Connection::open(&registry.db_path)
+                    && let Ok(count) =
+                        conn.query_row("SELECT COUNT(*) FROM users", [], |row| row.get::<_, i64>(0))
+                {
+                    crate::metrics::set_registered_users_total(count);
+                }
             }
         });
     }

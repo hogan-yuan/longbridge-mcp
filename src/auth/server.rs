@@ -230,6 +230,8 @@ async fn callback(
         return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
     }
 
+    crate::metrics::inc_oauth_authorizations();
+
     // Issue authorization code for MCP client
     let auth_code = Uuid::new_v4().to_string();
     oauth_state.codes.write().await.insert(
