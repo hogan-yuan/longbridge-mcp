@@ -1,0 +1,42 @@
+[package]
+name = "longbridge-mcp"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+longbridge = { path = "../openapi-sdk/rust" }
+rmcp = { version = "1.4", features = [
+    "server",
+    "transport-streamable-http-server",
+    "macros",
+] }
+axum = { version = "0.8", features = ["macros"] }
+tokio = { version = "1", features = [
+    "macros",
+    "rt-multi-thread",
+    "sync",
+    "time",
+    "signal",
+] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+schemars = "1"
+clap = { version = "4", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+time = { version = "0.3", features = ["formatting", "parsing"] }
+jsonwebtoken = "9"
+uuid = { version = "1", features = ["v4"] }
+reqwest = { version = "0.12", features = ["json"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+prometheus = "0.13"
+thiserror = "2"
+rand = "0.9"
+sha2 = "0.10"
+base64 = "0.22"
+dirs = "6"
+anyhow = "1"
+urlencoding = "2"
