@@ -31,6 +31,8 @@ struct FileConfig {
     base_url: Option<String>,
     idle_timeout: Option<u64>,
     log_dir: Option<PathBuf>,
+    tls_cert: Option<PathBuf>,
+    tls_key: Option<PathBuf>,
 }
 
 #[derive(Debug, Parser)]
@@ -51,6 +53,14 @@ struct Cli {
     /// Log directory (stderr if not specified)
     #[arg(long)]
     log_dir: Option<PathBuf>,
+
+    /// TLS certificate file (PEM format)
+    #[arg(long)]
+    tls_cert: Option<PathBuf>,
+
+    /// TLS private key file (PEM format)
+    #[arg(long)]
+    tls_key: Option<PathBuf>,
 }
 
 /// Resolved configuration (CLI > config file > defaults)
@@ -59,6 +69,8 @@ pub struct AppConfig {
     pub base_url: String,
     pub idle_timeout: u64,
     pub log_dir: Option<PathBuf>,
+    pub tls_cert: Option<PathBuf>,
+    pub tls_key: Option<PathBuf>,
 }
 
 fn mcp_dir() -> PathBuf {
@@ -80,11 +92,16 @@ fn load_config() -> AppConfig {
     };
 
     let bind = cli.bind.or(file_config.bind).unwrap_or_else(default_bind);
+    let tls_cert = cli.tls_cert.or(file_config.tls_cert);
+    let tls_key = cli.tls_key.or(file_config.tls_key);
+
+    let has_tls = tls_cert.is_some() && tls_key.is_some();
+    let scheme = if has_tls { "https" } else { "http" };
 
     let base_url = cli
         .base_url
         .or(file_config.base_url)
-        .unwrap_or_else(|| format!("http://localhost:{}", bind.port()));
+        .unwrap_or_else(|| format!("{scheme}://localhost:{}", bind.port()));
 
     AppConfig {
         bind,
@@ -94,6 +111,8 @@ fn load_config() -> AppConfig {
             .or(file_config.idle_timeout)
             .unwrap_or_else(default_idle_timeout),
         log_dir: cli.log_dir.or(file_config.log_dir),
+        tls_cert,
+        tls_key,
     }
 }
 
@@ -111,6 +130,11 @@ fn init_logging(log_dir: Option<&PathBuf>) {
     } else {
         tracing_subscriber::fmt().with_env_filter(filter).init();
     }
+}
+
+async fn shutdown_signal() {
+    tokio::signal::ctrl_c().await.ok();
+    tracing::info!("shutting down");
 }
 
 #[tokio::main]
@@ -142,15 +166,26 @@ async fn main() -> anyhow::Result<()> {
     let app =
         auth::create_router(app_state.clone()).layer(tower_http::cors::CorsLayer::permissive());
 
-    let listener = TcpListener::bind(config.bind).await?;
-    tracing::info!("listening on {}", config.bind);
-
-    axum::serve(listener, app)
-        .with_graceful_shutdown(async {
-            tokio::signal::ctrl_c().await.ok();
-            tracing::info!("shutting down");
-        })
-        .await?;
+    if let (Some(cert), Some(key)) = (&config.tls_cert, &config.tls_key) {
+        let tls_config = axum_server::tls_rustls::RustlsConfig::from_pem_file(cert, key).await?;
+        let handle = axum_server::Handle::new();
+        let shutdown_handle = handle.clone();
+        tokio::spawn(async move {
+            shutdown_signal().await;
+            shutdown_handle.graceful_shutdown(Some(std::time::Duration::from_secs(10)));
+        });
+        tracing::info!("listening on https://{}", config.bind);
+        axum_server::bind_rustls(config.bind, tls_config)
+            .handle(handle)
+            .serve(app.into_make_service())
+            .await?;
+    } else {
+        tracing::info!("listening on http://{}", config.bind);
+        let listener = TcpListener::bind(config.bind).await?;
+        axum::serve(listener, app)
+            .with_graceful_shutdown(shutdown_signal())
+            .await?;
+    }
 
     Ok(())
 }

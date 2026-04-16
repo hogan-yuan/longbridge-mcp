@@ -47,11 +47,29 @@ Create a config file at `~/.longbridge/mcp/config.json` (optional):
 | Option | Config Key | CLI Flag | Default | Description |
 |--------|-----------|----------|---------|-------------|
 | Bind address | `bind` | `--bind` | `127.0.0.1:8000` | HTTP server listen address |
-| Base URL | `base_url` | `--base-url` | `http://{bind}` | Public base URL for OAuth callbacks |
+| Base URL | `base_url` | `--base-url` | auto | Public base URL for OAuth callbacks |
 | Idle timeout | `idle_timeout` | `--idle-timeout` | `300` | Session idle timeout in seconds |
 | Log directory | `log_dir` | `--log-dir` | *(stderr)* | Directory for rolling log files |
+| TLS certificate | `tls_cert` | `--tls-cert` | *(none)* | PEM certificate file for HTTPS |
+| TLS private key | `tls_key` | `--tls-key` | *(none)* | PEM private key file for HTTPS |
 
 CLI arguments override config file values. The config file is read from `~/.longbridge/mcp/config.json`.
+
+When `tls_cert` and `tls_key` are both set, the server runs HTTPS. Otherwise it falls back to HTTP. The `base_url` defaults to `https://localhost:{port}` with TLS or `http://localhost:{port}` without.
+
+### HTTPS Example
+
+```json
+{
+  "bind": "0.0.0.0:8443",
+  "tls_cert": "/path/to/cert.pem",
+  "tls_key": "/path/to/key.pem"
+}
+```
+
+```bash
+./target/release/longbridge-mcp --tls-cert cert.pem --tls-key key.pem
+```
 
 ## Claude Code Integration
 
