@@ -42,6 +42,36 @@ pub fn transform_json(input: &[u8]) -> Result<String, serde_json::Error> {
     Ok(String::from_utf8(buf).expect("serde_json produces valid UTF-8"))
 }
 
+/// Return `true` iff `s` matches the `<PREFIX>/<MARKET>/<CODE>` counter_id
+/// pattern used internally by Longbridge (e.g. `ST/US/AAPL`, `ETF/HK/2800`,
+/// `IX/HK/HSI`, `OP/US/AAPL270115C300000`). Used to distinguish dynamic map
+/// keys that happen to carry a counter_id value from ordinary camelCase field
+/// names which must still go through snake_case conversion.
+///
+/// Zero-allocation: does not allocate on the common (negative) path.
+pub(crate) fn looks_like_counter_id(s: &str) -> bool {
+    // Prefix must be 1-4 ASCII uppercase letters followed by '/'.
+    let rest = match s.as_bytes().iter().position(|&b| b == b'/') {
+        Some(i) if (1..=4).contains(&i) => {
+            if !s.as_bytes()[..i].iter().all(|&b| b.is_ascii_uppercase()) {
+                return false;
+            }
+            &s[i + 1..]
+        }
+        _ => return false,
+    };
+    // Market must be exactly 2 ASCII uppercase letters followed by '/'.
+    if rest.len() < 3 || rest.as_bytes()[2] != b'/' {
+        return false;
+    }
+    if !rest.as_bytes()[..2].iter().all(|&b| b.is_ascii_uppercase()) {
+        return false;
+    }
+    let code = &rest[3..];
+    // Code must be non-empty and not contain a further slash.
+    !code.is_empty() && !code.as_bytes().contains(&b'/')
+}
+
 pub(crate) fn to_snake_case(s: &str) -> String {
     let mut result = String::with_capacity(s.len() + 4);
     for (i, c) in s.chars().enumerate() {
@@ -230,6 +260,44 @@ mod tests {
         assert!(output.contains("\"underlying_symbol\""), "got: {output}");
         assert!(output.contains("\"AAPL.US\""), "got: {output}");
         assert!(!output.contains("counter_id"), "got: {output}");
+    }
+
+    #[test]
+    fn counter_id_as_map_key() {
+        let input: serde_json::Value = serde_json::from_str(
+            r#"{"stocks":{"ST/US/AAPL":{"name":"苹果"},"ST/US/SNDK":{"name":"闪迪"},"IX/HK/HSI":{"name":"恒生指数"}}}"#,
+        )
+        .unwrap();
+        let output = to_tool_json(&input).unwrap();
+        assert!(output.contains("\"AAPL.US\""), "got: {output}");
+        assert!(output.contains("\"SNDK.US\""), "got: {output}");
+        assert!(output.contains("\"HSI.HK\""), "got: {output}");
+        assert!(!output.contains("s_t/"), "leaked snake-cased key: {output}");
+        assert!(
+            !output.contains("i_x/"),
+            "leaked snake-cased IX key: {output}"
+        );
+    }
+
+    #[test]
+    fn looks_like_counter_id_positive() {
+        assert!(looks_like_counter_id("ST/US/AAPL"));
+        assert!(looks_like_counter_id("ETF/US/SPY"));
+        assert!(looks_like_counter_id("IX/HK/HSI"));
+        assert!(looks_like_counter_id("OP/US/AAPL270115C300000"));
+        assert!(looks_like_counter_id("ST/HK/00700"));
+    }
+
+    #[test]
+    fn looks_like_counter_id_negative() {
+        assert!(!looks_like_counter_id("AAPL.US"));
+        assert!(!looks_like_counter_id("lastPrice"));
+        assert!(!looks_like_counter_id("created_at"));
+        assert!(!looks_like_counter_id("ST/US")); // incomplete
+        assert!(!looks_like_counter_id("")); // empty
+        assert!(!looks_like_counter_id("st/us/aapl")); // lowercase prefix/market
+        assert!(!looks_like_counter_id("ST/USA/AAPL")); // 3-letter market
+        assert!(!looks_like_counter_id("ST/US/")); // empty code
     }
 
     #[test]
