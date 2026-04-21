@@ -14,7 +14,7 @@ use crate::tools::tolerant::{
     tolerant_bool, tolerant_i64, tolerant_option_usize, tolerant_option_vec_i32,
     tolerant_option_vec_string, tolerant_usize, tolerant_vec_string,
 };
-use crate::tools::{tool_json, tool_result};
+use crate::tools::tool_json;
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct SymbolsParam {
@@ -560,7 +560,7 @@ pub async fn create_watchlist_group(
         .create_watchlist_group(req)
         .await
         .map_err(Error::longbridge)?;
-    Ok(tool_result(id.to_string()))
+    tool_json(&serde_json::json!({ "id": id }))
 }
 
 pub async fn delete_watchlist_group(
@@ -568,17 +568,19 @@ pub async fn delete_watchlist_group(
     p: DeleteWatchlistGroupParam,
 ) -> Result<CallToolResult, McpError> {
     let (ctx, _) = QuoteContext::new(mctx.create_config());
-    ctx.delete_watchlist_group(p.id, p.purge)
+    let id = p.id;
+    ctx.delete_watchlist_group(id, p.purge)
         .await
         .map_err(Error::longbridge)?;
-    Ok(tool_result("watchlist group deleted".to_string()))
+    tool_json(&serde_json::json!({ "id": id, "deleted": true }))
 }
 
 pub async fn update_watchlist_group(
     mctx: &crate::tools::McpContext,
     p: UpdateWatchlistGroupParam,
 ) -> Result<CallToolResult, McpError> {
-    let mut req = RequestUpdateWatchlistGroup::new(p.id);
+    let id = p.id;
+    let mut req = RequestUpdateWatchlistGroup::new(id);
     if let Some(name) = p.name {
         req = req.name(name);
     }
@@ -595,7 +597,7 @@ pub async fn update_watchlist_group(
     ctx.update_watchlist_group(req)
         .await
         .map_err(Error::longbridge)?;
-    Ok(tool_result("watchlist group updated".to_string()))
+    tool_json(&serde_json::json!({ "id": id, "updated": true }))
 }
 
 pub async fn security_list(
