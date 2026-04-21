@@ -150,11 +150,9 @@ fn walk_convert(value: &mut serde_json::Value, segments: &[&str]) {
                 walk_convert(v, rest);
             }
         }
-        serde_json::Value::Array(arr) => {
-            if seg == "*" {
-                for v in arr.iter_mut() {
-                    walk_convert(v, rest);
-                }
+        serde_json::Value::Array(arr) if seg == "*" => {
+            for v in arr.iter_mut() {
+                walk_convert(v, rest);
             }
         }
         _ => {}
