@@ -4,7 +4,7 @@ use rmcp::schemars::JsonSchema;
 use rmcp::serde::Deserialize;
 
 use crate::counter::symbol_to_counter_id;
-use crate::tools::http_client::{http_delete_tool, http_get_tool, http_post_tool};
+use crate::tools::support::http_client::{http_delete_tool, http_get_tool, http_post_tool};
 use crate::tools::tool_json;
 
 #[derive(Debug, Deserialize, JsonSchema)]

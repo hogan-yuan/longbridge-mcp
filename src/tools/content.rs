@@ -5,7 +5,7 @@ use rmcp::schemars::JsonSchema;
 use rmcp::serde::Deserialize;
 
 use crate::error::Error;
-use crate::tools::tolerant::tolerant_option_vec_string;
+use crate::tools::support::tolerant::tolerant_option_vec_string;
 use crate::tools::tool_json;
 
 #[derive(Debug, Deserialize, JsonSchema)]

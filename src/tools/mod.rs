@@ -31,14 +31,12 @@ mod calendar;
 mod content;
 mod dca;
 mod fundamental;
-pub mod http_client;
 mod market;
-mod parse;
 mod portfolio;
 mod quote;
 mod sharelist;
 mod statement;
-mod tolerant;
+mod support;
 mod trade;
 
 /// Longbridge MCP tool server (stateless).
